@@ -7,6 +7,7 @@ import {
   CHAT_ATTACHMENT_ACCEPT,
   isSupportedChatAttachmentMimeType,
   inferMimeType,
+  compressAttachmentIfNeeded,
 } from "../chat/attachment-support.ts";
 import { DeletedMessages } from "../chat/deleted-messages.ts";
 import { exportChatMarkdown } from "../chat/export.ts";
@@ -621,12 +622,13 @@ function handlePaste(e: ClipboardEvent, props: ChatProps) {
       continue;
     }
     const reader = new FileReader();
-    reader.addEventListener("load", () => {
+    reader.addEventListener("load", async () => {
       const dataUrl = reader.result as string;
+      const compressed = await compressAttachmentIfNeeded(dataUrl);
       const newAttachment: ChatAttachment = {
         id: generateAttachmentId(),
-        dataUrl,
-        mimeType: inferMimeType(dataUrl, file.type),
+        dataUrl: compressed,
+        mimeType: inferMimeType(compressed, file.type),
       };
       const current = props.attachments ?? [];
       props.onAttachmentsChange?.([...current, newAttachment]);
@@ -649,11 +651,13 @@ function handleFileSelect(e: Event, props: ChatProps) {
     }
     pending++;
     const reader = new FileReader();
-    reader.addEventListener("load", () => {
+    reader.addEventListener("load", async () => {
+      const dataUrl = reader.result as string;
+      const compressed = await compressAttachmentIfNeeded(dataUrl);
       additions.push({
         id: generateAttachmentId(),
-        dataUrl: reader.result as string,
-        mimeType: inferMimeType(reader.result as string, file.type),
+        dataUrl: compressed,
+        mimeType: inferMimeType(compressed, file.type),
       });
       pending--;
       if (pending === 0) {
@@ -680,11 +684,13 @@ function handleDrop(e: DragEvent, props: ChatProps) {
     }
     pending++;
     const reader = new FileReader();
-    reader.addEventListener("load", () => {
+    reader.addEventListener("load", async () => {
+      const dataUrl = reader.result as string;
+      const compressed = await compressAttachmentIfNeeded(dataUrl);
       additions.push({
         id: generateAttachmentId(),
-        dataUrl: reader.result as string,
-        mimeType: inferMimeType(reader.result as string, file.type),
+        dataUrl: compressed,
+        mimeType: inferMimeType(compressed, file.type),
       });
       pending--;
       if (pending === 0) {
