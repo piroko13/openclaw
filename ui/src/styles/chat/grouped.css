@@ -196,8 +196,26 @@ img.chat-avatar {
   word-wrap: break-word;
 }
 
-.chat-bubble.has-copy {
-  padding-right: 70px;
+/* ── Action buttons: text wraps around them via float ──
+   A floated spacer reserves space for the buttons in the top-right.
+   Text lines that sit alongside the spacer are indented; lines below
+   it use the full bubble width. The actual button bar is positioned
+   absolutely over the spacer. It's invisible until hover (desktop) or
+   always visible (touch). */
+
+.chat-bubble-actions-spacer {
+  float: right;
+  /* Two buttons ~80px wide + 8px gap + 8px clearance from bubble edge */
+  width: 90px;
+  height: 28px;
+  shape-outside: inset(0 0 0 0);
+  /* The spacer itself is invisible; it only reserves space */
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.chat-bubble.has-actions--single .chat-bubble-actions-spacer {
+  width: 50px;
 }
 
 .chat-bubble-actions {
@@ -209,6 +227,9 @@ img.chat-avatar {
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease-out;
+  background: var(--bg, rgba(0, 0, 0, 0.6));
+  border-radius: var(--radius-sm, 4px);
+  padding: 2px 4px;
 }
 
 .chat-bubble:hover .chat-bubble-actions {

@@ -297,7 +297,7 @@ export function renderChatControls(state: AppViewState) {
         ${toolCallsIcon}
       </button>
       <button
-        class="btn btn--sm btn--icon ${focusActive ? "active" : ""}"
+        class="btn btn--sm btn--icon chat-controls__focus-toggle ${focusActive ? "active" : ""}"
         ?disabled=${disableFocusToggle}
         @click=${() => {
           if (disableFocusToggle) {
@@ -485,7 +485,9 @@ export function renderChatMobileToggle(state: AppViewState) {
               ${toolCallsIcon}
             </button>
             <button
-              class="btn btn--sm btn--icon ${focusActive ? "active" : ""}"
+              class="btn btn--sm btn--icon chat-controls__focus-toggle ${focusActive
+                ? "active"
+                : ""}"
               ?disabled=${disableFocusToggle}
               @click=${() => {
                 if (!disableFocusToggle) {

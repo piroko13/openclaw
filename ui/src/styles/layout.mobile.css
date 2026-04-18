@@ -223,27 +223,55 @@
 
 /* Mobile-specific styles */
 @media (max-width: 768px) {
-  .shell {
-    --shell-pad: 8px;
-    --shell-gap: 8px;
+  .shell,
+  .shell--chat,
+  .shell--chat-focus {
+    /* Lock shell exactly to the visible viewport on iOS Safari.
+       position:fixed + inset:0 avoids the 100dvh rounding bug that
+       causes the UI to be slightly taller than the viewport when
+       viewport-fit=cover is active. */
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: auto;
+    min-height: auto;
+    --shell-pad: 2px;
+    --shell-gap: 2px;
+    /* Use auto for the topbar row so it sizes to its content (including
+       safe-area padding). The content row uses 1fr to fill remaining
+       space. This keeps the total within the viewport with no overflow. */
+    grid-template-rows: auto minmax(0, 1fr);
+    overscroll-behavior: none;
+  }
+
+  .shell--chat-focus {
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   /* Topbar */
   .topbar {
-    padding: 10px 12px;
+    padding: 2px 4px;
     min-height: auto;
+    /* Push topbar content below the Dynamic Island / notch.
+       With viewport-fit=cover, env(safe-area-inset-top) reports the
+       notch height (~59px on iPhone 16 Pro). The topbar grid row is
+       auto-sized, so this padding makes the row grow to fit, and the
+       content row (1fr) shrinks to fill the rest — all within 100dvh. */
+    padding-top: max(1px, env(safe-area-inset-top, 0px));
   }
 
   .topnav-shell {
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 6px;
   }
 
   .topnav-shell__actions {
     min-width: 0;
     flex: 1 1 auto;
     justify-content: space-between;
-    gap: 10px;
+    gap: 6px;
     align-items: stretch;
   }
 
@@ -317,7 +345,7 @@
 
   .sidebar-shell,
   .sidebar--collapsed .sidebar-shell {
-    padding: 16px 14px 12px;
+    padding: 10px 8px 8px;
   }
 
   .nav-item,
@@ -336,7 +364,12 @@
   }
 
   .content--chat {
-    gap: 2px;
+    gap: 1px;
+    /* Don't add safe-area-inset-top here — the topbar already handles it.
+       Without this override, message bubbles get pushed down by ~47px on
+       iPhones with a notch, making the chat area look heavily padded. */
+    padding-top: 1px;
+    padding-bottom: 0;
   }
 
   /* Show the mobile gear toggle (lives in topbar now) */
@@ -402,8 +435,8 @@
     height: 44px;
   }
   .content {
-    padding: 4px 4px 16px;
-    gap: 12px;
+    padding: 1px 1px 0;
+    gap: 4px;
   }
 
   /* Cards */
@@ -490,7 +523,7 @@
 
   .chat-thread {
     margin-top: 0;
-    padding: 0 8px 12px;
+    padding: 0 2px 4px;
   }
 
   .chat-msg {
@@ -503,7 +536,8 @@
   }
 
   .chat-compose {
-    gap: 8px;
+    gap: 2px;
+    padding-bottom: 0;
   }
 
   .chat-compose__field textarea {
@@ -514,11 +548,12 @@
   }
 
   .agent-chat__input {
-    margin: 0 8px 10px;
+    margin: 0 2px 0;
+    padding-bottom: max(2px, env(safe-area-inset-bottom, 0px));
   }
 
   .agent-chat__toolbar {
-    padding: 4px 8px;
+    padding: 2px 4px;
   }
 
   .agent-chat__input-btn,
@@ -592,11 +627,11 @@
 /* Small mobile */
 @media (max-width: 400px) {
   .shell {
-    --shell-pad: 4px;
+    --shell-pad: 2px;
   }
 
   .topbar {
-    padding: 8px 10px;
+    padding: 2px 4px;
   }
 
   .brand-title {
@@ -609,8 +644,8 @@
   }
 
   .content {
-    padding: 4px 4px 12px;
-    gap: 10px;
+    padding: 1px 1px 0;
+    gap: 4px;
   }
 
   .card {

@@ -1133,6 +1133,7 @@ function renderGroupedMessage(
   return html`
     <div class="${bubbleClasses}">
       ${renderReplyPill(normalizedMessage.replyTarget)}
+      ${hasActions ? html`<div class="chat-bubble-actions-spacer"></div>` : nothing}
       ${hasActions
         ? html`<div class="chat-bubble-actions">
             ${canExpand ? renderExpandButton(markdown!, onOpenSidebar!) : nothing}

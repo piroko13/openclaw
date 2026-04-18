@@ -4,6 +4,25 @@ Docs: https://docs.openclaw.ai
 
 ## Unreleased
 
+- **Fix**: Mobile CSS overrides now load after all component CSS, fixing cascade order so `@media (width<=768px)` rules correctly override desktop defaults (e.g. `.agent-chat__input` padding/margin).
+
+### Mobile layout
+
+- Fix: Eliminated ~120-150px dead whitespace below chat input bar on mobile Safari. Input now hugs the bottom of the screen with only `env(safe-area-inset-bottom)` for the home indicator (~34px), matching WhatsApp/iMessage behavior.
+- Fix: Slightly tightened top safe-area padding from `max(2px, ...)` to `max(1px, ...)` for a tighter fit below the Dynamic Island.
+
+### Mobile UI
+
+- Reduced excessive padding on mobile (768px breakpoint) for tighter, more compact layout
+  - shell-pad/gap: 8px→4px, topbar: 10px 12px→4px 6px, content: 4px 4px 16px→2px 2px 8px
+  - chat-thread, agent-chat input, compose padding all reduced
+  - Safe-area-inset values preserved for Dynamic Island/notch
+  - 400px small-mobile breakpoint also tightened
+
+### Fixes
+
+- CSS/mobile: fix safe-area padding bleeding into chat message bubbles on iOS Safari by overriding `.content--chat` padding-top to `4px` (removing `env(safe-area-inset-top)` that was already handled by `.topbar`).
+
 ### Changes
 
 - macOS/gateway: add `screen.snapshot` support for macOS app nodes, including runtime plumbing, default macOS allowlisting, and docs for monitor preview flows. (#67954) Thanks @BunsDev.
@@ -6339,3 +6358,50 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Discord: avoid duplicate replies when OpenAI emits repeated `message_end` events.
 - Commands: unify /status (inline) and command auth across providers; group bypass for authorized control commands; remove Discord /clawd slash handler.
 - CLI: run `openclaw agent` via the Gateway by default; use `--local` to force embedded mode.
+
+## 2026-04-18 — Dynamic Island viewport overflow fix (real fix)
+
+### Problem
+
+The UI was slightly taller than the Safari viewport on iPhones with Dynamic Island.
+Scrolling up revealed the topbar (hamburger, search, cog) hidden behind the notch.
+The previous fix added `env(safe-area-inset-top)` to grid rows and padding, but it had
+no effect because the viewport meta tag lacked `viewport-fit=cover`, causing all
+`env(safe-area-inset-*)` values to return 0.
+
+### Root causes
+
+1. **Missing `viewport-fit=cover`** in viewport meta tag — without it, Safari doesn't
+   expose safe area insets via `env()`, and the notch area is reserved as dead space
+   that pushes content down but can't be compensated for.
+2. **Grid row sizing** — adding inset to a fixed-height grid row made the total exceed
+   `100dvh`, causing the page to overflow by the inset amount.
+
+### Fix
+
+- Added `viewport-fit=cover` to the viewport meta tag in `ui/index.html`
+- Changed mobile grid row from `calc(var(--shell-topbar-height) + env(safe-area-inset-top))`
+  to `auto` — the topbar sizes to its content (including safe-area padding), and the
+  content row's `1fr` fills remaining space within `100dvh`
+- Topbar `padding-top: max(10px, env(safe-area-inset-top, 0px))` pushes content below
+  the notch, and since the row is auto-sized, it fits within the viewport
+
+### Files changed
+
+- `ui/index.html` — viewport meta: added `viewport-fit=cover`
+- `ui/src/styles/layout.mobile.css` — grid rows: `auto minmax(0,1fr)` instead of
+  `calc(52px + inset) minmax(0,1fr)`; topbar padding uses `env(safe-area-inset-top, 0px)`
+
+## 2026-04-18 — Dynamic Island fix (attempt 3)
+
+- **Mobile shell**: switched from `height: 100dvh` to `position: fixed; inset: 0` on ≤768px
+  to lock the UI exactly to the visible viewport, bypassing the iOS Safari 100dvh rounding
+  bug that caused the shell to be slightly taller than the screen when `viewport-fit=cover`
+  is active.
+- **Desktop shell**: added `height: -webkit-fill-available` fallback after `100vh` / `100dvh`
+  for better cross-browser support.
+- **`html, body`**: set `height: 100%; margin: 0; padding: 0; overflow: hidden` to prevent
+  any body-level overflow.
+- **Mobile shell**: added `overscroll-behavior: none` to prevent iOS rubber-band scrolling.
+- All previous fixes retained: `viewport-fit=cover`, auto grid rows, `padding-top:
+max(10px, env(safe-area-inset-top))` on `.topbar`.

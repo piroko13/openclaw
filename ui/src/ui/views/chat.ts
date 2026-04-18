@@ -89,6 +89,7 @@ export type ChatProps = {
   attachments?: ChatAttachment[];
   onAttachmentsChange?: (attachments: ChatAttachment[]) => void;
   showNewMessages?: boolean;
+  userNotAtBottom?: boolean;
   onScrollToBottom?: () => void;
   onRefresh: () => void;
   onToggleFocusMode: () => void;
@@ -1403,7 +1404,13 @@ export function renderChat(props: ChatProps) {
               ${icons.arrowDown} New messages
             </button>
           `
-        : nothing}
+        : props.userNotAtBottom
+          ? html`
+              <button class="chat-new-messages" type="button" @click=${props.onScrollToBottom}>
+                ${icons.arrowDown} Scroll to bottom
+              </button>
+            `
+          : nothing}
 
       <!-- Input bar -->
       <div class="agent-chat__input">
@@ -1505,18 +1512,15 @@ export function renderChat(props: ChatProps) {
 
           <div class="agent-chat__toolbar-right">
             ${nothing /* search hidden for now */}
-            ${canAbort
-              ? nothing
-              : html`
-                  <button
-                    class="btn btn--ghost"
-                    @click=${props.onNewSession}
-                    title="New session"
-                    aria-label="New session"
-                  >
-                    ${icons.plus}
-                  </button>
-                `}
+            <button
+              class="btn btn--ghost"
+              @click=${props.onNewSession}
+              title="New session"
+              aria-label="New session"
+              ?disabled=${canAbort}
+            >
+              ${icons.plus}
+            </button>
             <button
               class="btn btn--ghost"
               @click=${() => exportMarkdown(props)}
