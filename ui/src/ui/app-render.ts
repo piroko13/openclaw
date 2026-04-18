@@ -647,6 +647,19 @@ function renderCronQuickCreateForTab(
   });
 }
 
+function renderSplashScreen(state: AppViewState) {
+  const basePath = state.basePath;
+  const logoSrc = agentLogoUrl(basePath);
+  return html`
+    <div class="splash-screen">
+      <div class="splash-screen__content">
+        <img class="splash-screen__logo" src="${logoSrc}" alt="OpenClaw" />
+        <div class="splash-screen__text">Connecting...</div>
+      </div>
+    </div>
+  `;
+}
+
 export function renderApp(state: AppViewState) {
   const updatableState = state as AppViewState & { requestUpdate?: () => void };
   const requestHostUpdate =
@@ -658,6 +671,9 @@ export function renderApp(state: AppViewState) {
   // Gate: require successful gateway connection before showing the dashboard.
   // The gateway URL confirmation overlay is always rendered so URL-param flows still work.
   if (!state.connected) {
+    if (state.connecting && state.settings.token.trim()) {
+      return html`${renderSplashScreen(state)} ${renderGatewayUrlConfirmation(state)}`;
+    }
     return html` ${renderLoginGate(state)} ${renderGatewayUrlConfirmation(state)} `;
   }
 
@@ -2277,6 +2293,10 @@ export function renderApp(state: AppViewState) {
                 switchChatSession(state, key);
               },
               showNewMessages: state.chatNewMessagesBelow && !state.chatManualRefreshInFlight,
+              userNotAtBottom:
+                !state.chatUserNearBottom &&
+                !state.chatNewMessagesBelow &&
+                !state.chatManualRefreshInFlight,
               onScrollToBottom: () => state.scrollToBottom(),
               // Sidebar props for tool output viewing
               sidebarOpen: state.sidebarOpen,

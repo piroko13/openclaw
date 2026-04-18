@@ -8,6 +8,7 @@ import {
   flushChatQueueForEvent,
 } from "./app-chat.ts";
 import type { EventLogEntry } from "./app-events.ts";
+import { resetChatScroll, scheduleChatScroll } from "./app-scroll.ts";
 import {
   applySettings,
   loadCron,
@@ -233,6 +234,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
   const reconnectReason = options?.reason ?? "initial";
   shutdownHost.pendingShutdownMessage = null;
   shutdownHost.resumeChatQueueAfterReconnect = false;
+  host.connecting = true;
   host.lastError = null;
   host.lastErrorCode = null;
   host.hello = null;
@@ -268,6 +270,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
       }
       shutdownHost.pendingShutdownMessage = null;
       host.connected = true;
+      host.connecting = false;
       host.lastError = null;
       host.lastErrorCode = null;
       host.hello = hello;
@@ -279,6 +282,10 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
       (host as unknown as { chatStreamStartedAt: number | null }).chatStreamStartedAt = null;
       (host as GatewayHostWithSideResults).chatSideResultTerminalRuns?.clear();
       resetToolStream(host as unknown as Parameters<typeof resetToolStream>[0]);
+      // On reconnect, reset scroll state and auto-scroll to bottom so the
+      // user sees the latest messages (fixes mobile Safari scroll-to-top bug).
+      resetChatScroll(host as unknown as Parameters<typeof resetChatScroll>[0]);
+      scheduleChatScroll(host as unknown as Parameters<typeof scheduleChatScroll>[0], true, false);
       if (shutdownHost.resumeChatQueueAfterReconnect) {
         // The interrupted run will never emit its terminal event now that the
         // old client is gone, so resume any deferred commands after hello.
@@ -300,6 +307,7 @@ export function connectGateway(host: GatewayHost, options?: ConnectGatewayOption
         return;
       }
       host.connected = false;
+      host.connecting = false;
       // Code 1012 = Service Restart (expected during config saves, don't show as error)
       host.lastErrorCode =
         resolveGatewayErrorDetailCode(error) ??

@@ -433,27 +433,12 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
           provider: modelRef.provider,
           model: modelRef.model,
         });
-        // Smart image routing: Check image size/complexity to decide routing
-        // Small screenshots (< 1MB) go to primary model (Kimi)
-        // Large/complex images go to imageModel (Grok specialist)
-        const totalAttachmentBytes = normalizedAttachments.reduce((sum, att) => sum + (att.data?.length || 0), 0);
-        const maxAttachmentBytes = Math.max(...normalizedAttachments.map(att => att.data?.length || 0));
-        const totalSizeMB = totalAttachmentBytes / (1024 * 1024);
-        const maxSizeMB = maxAttachmentBytes / (1024 * 1024);
-        
-        // If images are large (>1MB each or >2MB total), use imageModel for better quality
-        const shouldUseImageModel = maxSizeMB > 1.0 || totalSizeMB > 2.0;
-        
-        // If the primary model doesn't support images OR images are large/complex,
-        // route to imageModel if configured
-        if (!supportsImages || shouldUseImageModel) {
+        // If the primary model doesn't support images but an imageModel is configured,
+        // allow attachments through — they'll be handled by the image tool / imageModel.
+        if (!supportsImages) {
           const imageModelRef = resolveAgentModelPrimaryValue(cfg.agents?.defaults?.imageModel);
           if (imageModelRef) {
             supportsImages = true;
-            // Log the routing decision for debugging
-            if (shouldUseImageModel && supportsImages) {
-              ctx.logGateway.warn?.(`[SmartRouting] Large images (${maxSizeMB.toFixed(1)}MB max, ${totalSizeMB.toFixed(1)}MB total) routed to imageModel`);
-            }
           }
         }
         try {

@@ -196,17 +196,26 @@ img.chat-avatar {
   word-wrap: break-word;
 }
 
-/* Reserve space for action buttons (copy + expand) so they don't overlap text.
-   On desktop the buttons appear on hover only; on touch devices they are always visible.
-   Two buttons need ~90px; one button needs ~50px. */
-.chat-bubble.has-actions {
-  padding-right: 90px;
+/* ── Action buttons: text wraps around them via float ──
+   A floated spacer reserves space for the buttons in the top-right.
+   Text lines that sit alongside the spacer are indented; lines below
+   it use the full bubble width. The actual button bar is positioned
+   absolutely over the spacer. It's invisible until hover (desktop) or
+   always visible (touch). */
+
+.chat-bubble-actions-spacer {
+  float: right;
+  /* Two buttons ~80px wide + 8px gap + 8px clearance from bubble edge */
+  width: 90px;
+  height: 28px;
+  shape-outside: inset(0 0 0 0);
+  /* The spacer itself is invisible; it only reserves space */
+  visibility: hidden;
+  pointer-events: none;
 }
 
-/* When only one action button is present (copy-only, no expand),
-   the narrower padding is sufficient. Applied via JS if needed. */
-.chat-bubble.has-actions--single {
-  padding-right: 50px;
+.chat-bubble.has-actions--single .chat-bubble-actions-spacer {
+  width: 50px;
 }
 
 .chat-bubble-actions {
@@ -218,6 +227,9 @@ img.chat-avatar {
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease-out;
+  background: var(--bg, rgba(0, 0, 0, 0.6));
+  border-radius: var(--radius-sm, 4px);
+  padding: 2px 4px;
 }
 
 .chat-bubble:hover .chat-bubble-actions {
@@ -229,15 +241,6 @@ img.chat-avatar {
   .chat-bubble-actions {
     opacity: 1;
     pointer-events: auto;
-  }
-
-  /* On touch devices, give even more room so buttons never clip text */
-  .chat-bubble.has-actions {
-    padding-right: 96px;
-  }
-
-  .chat-bubble.has-actions--single {
-    padding-right: 54px;
   }
 }
 
