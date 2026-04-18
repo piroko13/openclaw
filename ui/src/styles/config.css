@@ -1790,3 +1790,25 @@
     min-width: 70px;
   }
 }
+
+/* ── iOS Safari auto-zoom prevention ── */
+/* Safari on iOS automatically zooms when a focused input has font-size < 16px.
+   This media query targets touch-primary devices only, leaving desktop font sizes unchanged.
+   See: https://github.com/openclaw/openclaw/issues/64651 */
+@media (hover: none) and (pointer: coarse) {
+  .cfg-input,
+  .cfg-input--sm,
+  .cfg-textarea,
+  .cfg-textarea--sm,
+  input[type="text"],
+  input[type="search"],
+  input[type="password"],
+  input[type="email"],
+  input[type="number"],
+  input[type="url"],
+  input[type="tel"],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
