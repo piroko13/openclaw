@@ -4,12 +4,32 @@ Docs: https://docs.openclaw.ai
 
 ## Unreleased
 
+- **Fix**: Mobile CSS overrides now load after all component CSS, fixing cascade order so `@media (width<=768px)` rules correctly override desktop defaults (e.g. `.agent-chat__input` padding/margin).
+
+### Mobile layout
+
+- Fix: Eliminated ~120-150px dead whitespace below chat input bar on mobile Safari. Input now hugs the bottom of the screen with only `env(safe-area-inset-bottom)` for the home indicator (~34px), matching WhatsApp/iMessage behavior.
+- Fix: Slightly tightened top safe-area padding from `max(2px, ...)` to `max(1px, ...)` for a tighter fit below the Dynamic Island.
+
+### Mobile UI
+
+- Reduced excessive padding on mobile (768px breakpoint) for tighter, more compact layout
+  - shell-pad/gap: 8px→4px, topbar: 10px 12px→4px 6px, content: 4px 4px 16px→2px 2px 8px
+  - chat-thread, agent-chat input, compose padding all reduced
+  - Safe-area-inset values preserved for Dynamic Island/notch
+  - 400px small-mobile breakpoint also tightened
+
+### Fixes
+
+- CSS/mobile: fix safe-area padding bleeding into chat message bubbles on iOS Safari by overriding `.content--chat` padding-top to `4px` (removing `env(safe-area-inset-top)` that was already handled by `.topbar`).
+
 ### Changes
 
 - macOS/gateway: add `screen.snapshot` support for macOS app nodes, including runtime plumbing, default macOS allowlisting, and docs for monitor preview flows. (#67954) Thanks @BunsDev.
 
 ### Fixes
 
+- Agents/bootstrap: resolve bootstrap from workspace truth instead of stale session transcript markers, keep embedded bootstrap instructions on a hidden user-context prelude, suppress normal `/new` and `/reset` greetings while `BOOTSTRAP.md` is still pending, and make the embedded runner read the bootstrap ritual before replying normally.
 - Onboarding/non-interactive: preserve existing gateway auth tokens during re-onboard so active local gateway clients are not disconnected by an implicit token rotation. (#67821) Thanks @BKF-Gitty.
 - Gateway/hello-ok: always report negotiated auth metadata for successful shared-auth handshakes, including control-ui bypass coverage when no device token is issued. (#67810) Thanks @BunsDev.
 - OpenAI Codex/Responses: unify native Responses API capability detection so Codex OAuth requests emit the required `store: false` field on the native Responses path. (#67918) Thanks @obviyus.
@@ -24,6 +44,27 @@ Docs: https://docs.openclaw.ai
 - Telegram/streaming: clear the compaction replay guard after visible non-final boundaries so a post-tool assistant reply rotates to a fresh preview instead of editing the pre-compaction message. (#67993) Thanks @obviyus.
 - Matrix: fix `sessions_spawn --thread` subagent session spawning — thread binding creation, cleanup on session end, and completion-message delivery target resolution now work end-to-end. (#67643) Thanks @eejohnso-ops and @gumadeiras.
 - macOS/webchat: enable Undo and Redo in the composer text input by turning on the native `NSTextView` undo manager. (#34962) Thanks @tylerbittner.
+- macOS/remote SSH: require an already-trusted host key on the macOS remote command, gateway probe, port tunnel, and pairing probe paths by switching `StrictHostKeyChecking=accept-new` to `StrictHostKeyChecking=yes` and centralizing the shared SSH option fragments in `CommandResolver`, so first-time macOS remote connections no longer silently accept an unknown host key and must be trusted ahead of time via `~/.ssh/known_hosts`. (#68199)
+- CLI/configure: show the channel picker before probing statuses and let remove mode delete configured channel blocks directly from config. (#68007) Thanks @gumadeiras.
+- OpenAI Codex/OAuth: keep OpenClaw as the canonical owner for imported Codex CLI OAuth sessions, stop writing refreshed credentials back into `.codex`, and prefer fresher OpenClaw credentials over stale imported CLI state so refresh recovery stays stable. Thanks @vincentkoc.
+- OpenAI Codex/OAuth: treat the OpenAI TLS prerequisites probe as advisory instead of a hard blocker, so Codex sign-in can still proceed when the speculative Node/OpenSSL precheck fails but the real OAuth flow still works. Thanks @vincentkoc.
+- Models status/OAuth health: align OAuth health reporting with the same effective credential view runtime uses, so expired refreshable sessions stop showing healthy by default and fresher imported Codex CLI credentials surface correctly in `models status`, doctor, and gateway auth status. Thanks @vincentkoc.
+- OpenAI Codex/OAuth: keep external CLI OAuth imports runtime-only by overlaying fresher Codex CLI credentials without mutating `auth-profiles.json`, so `.codex` stays a bootstrap/runtime input instead of becoming durable OpenClaw state. Thanks @vincentkoc.
+- OpenAI Codex/OAuth: drop legacy CLI-manager routing from the remaining bootstrap path so Codex and MiniMax CLI imports are matched by their canonical OpenClaw profile ids instead of stale `managedBy` metadata. Thanks @vincentkoc.
+- OpenAI Codex/OAuth: only bootstrap from external CLI OAuth when the local OpenClaw profile is missing or unusable, so healthy local sessions are no longer overridden by fresher `.codex` tokens. Thanks @vincentkoc.
+- OpenAI Codex/OAuth: rename the external CLI bootstrap helper, reuse the same usable-oauth check across runtime fallback paths, and add debug logs plus health coverage so bootstrap decisions stay legible. Thanks @vincentkoc.
+- Twitch/setup: load Twitch through the bundled setup-entry discovery path and keep setup/status account detection aligned with runtime config. (#68008) Thanks @gumadeiras.
+- Feishu/card actions: resolve card-action chat type from the Feishu chat API when stored context is missing, preferring `chat_mode` over `chat_type`, so DM-originated card actions no longer bypass `dmPolicy` by falling through to the group handling path. (#68201)
+- Cron/isolated-agent: preserve `trusted: false` on isolated cron awareness events mirrored into the main session, and forward the optional `trusted` flag through the gateway cron wrapper so explicit trust downgrades survive session-key scoping. (#68210)
+- Agents/fallback: recognize bare leading ZenMux `402 ...` quota-refresh errors without misclassifying plain numeric `402 ...` text, and keep the embedded fallback regression coverage stable. (#47579) Thanks @bwjoke.
+- Failover/google: only treat `INTERNAL` status payloads as retryable timeouts when they also carry a `500` code, so malformed non-500 payloads do not enter the retry path. (#68238) Thanks @altaywtf and @Openbling.
+- Agents/tools: filter bundled MCP/LSP tools through the final owner-only and tool-policy pipeline after merging them into the effective tool list, so existing allowlists, deny rules, sandbox policy, subagent policy, and owner-only restrictions apply to bundled tools the same way they apply to core tools. (#68195)
+- Gateway/assistant media: require `operator.read` scope for assistant-media file and metadata requests on identity-bearing HTTP auth paths so callers without a read scope can no longer access assistant media. (#68175) Thanks @eleqtrizit.
+- Exec approvals/display: escape raw control characters (including newline and carriage return) in the shared and macOS approval-prompt command sanitizers, so trailing command payloads no longer render on hidden extra lines in the approval UI. (#68198)
+- Telegram/streaming: fence same-session stale preview and finalization work after aborts so Telegram no longer replays an older reply or flushes a hidden short preview after the abort confirmation lands. (#68100) Thanks @rubencu.
+- OpenAI Codex/OAuth + Pi: keep imported Codex CLI OAuth bootstrap, Pi auth export, and runtime overlay handling aligned so Codex sessions survive refresh and health checks without leaking transient CLI state into saved auth files. Thanks @vincentkoc.
+- Agents/TTS: report failed speech synthesis as a real tool error so unconfigured providers no longer feed successful TTS failure output back into agent loops. (#67980) Thanks @lawrence3699.
+- Gateway/wake: allow unknown properties on wake payloads so external senders like Paperclip can attach opaque metadata without failing schema validation. (#68355) Thanks @kagura-agent.
 
 ## 2026.4.15
 
@@ -130,6 +171,7 @@ Docs: https://docs.openclaw.ai
 - Webchat/security: reject remote-host `file://` URLs in the media embedding path. (#67293) Thanks @pgondhi987.
 - Dreaming/memory-core: use the ingestion day, not the source file day, for daily recall dedupe so repeat sweeps of the same daily note can increment `dailyCount` across days instead of stalling at `1`. (#67091) Thanks @Bartok9.
 - Node-host/tools.exec: let approval binding distinguish known native binaries from mutable shell payload files, while still fail-closing unknown or racy file probes so absolute-path node-host commands like `/usr/bin/whoami` no longer get rejected as unsafe interpreter/runtime commands. (#66731) Thanks @tmimmanuel.
+- Codex/gateway: fix gateway crash when the codex-acp subprocess terminates abruptly; an unhandled EPIPE on the child stdin stream now routes through graceful client shutdown, rejecting pending requests instead of propagating as an uncaught exception that crashes the entire gateway daemon and all connected channels. Fixes #67886. (#67947) thanks @openperf
 
 ## 2026.4.14
 
@@ -6316,3 +6358,50 @@ Thanks @AlexMikhalev, @CoreyH, @John-Rood, @KrauseFx, @MaudeBot, @Nachx639, @Nic
 - Discord: avoid duplicate replies when OpenAI emits repeated `message_end` events.
 - Commands: unify /status (inline) and command auth across providers; group bypass for authorized control commands; remove Discord /clawd slash handler.
 - CLI: run `openclaw agent` via the Gateway by default; use `--local` to force embedded mode.
+
+## 2026-04-18 — Dynamic Island viewport overflow fix (real fix)
+
+### Problem
+
+The UI was slightly taller than the Safari viewport on iPhones with Dynamic Island.
+Scrolling up revealed the topbar (hamburger, search, cog) hidden behind the notch.
+The previous fix added `env(safe-area-inset-top)` to grid rows and padding, but it had
+no effect because the viewport meta tag lacked `viewport-fit=cover`, causing all
+`env(safe-area-inset-*)` values to return 0.
+
+### Root causes
+
+1. **Missing `viewport-fit=cover`** in viewport meta tag — without it, Safari doesn't
+   expose safe area insets via `env()`, and the notch area is reserved as dead space
+   that pushes content down but can't be compensated for.
+2. **Grid row sizing** — adding inset to a fixed-height grid row made the total exceed
+   `100dvh`, causing the page to overflow by the inset amount.
+
+### Fix
+
+- Added `viewport-fit=cover` to the viewport meta tag in `ui/index.html`
+- Changed mobile grid row from `calc(var(--shell-topbar-height) + env(safe-area-inset-top))`
+  to `auto` — the topbar sizes to its content (including safe-area padding), and the
+  content row's `1fr` fills remaining space within `100dvh`
+- Topbar `padding-top: max(10px, env(safe-area-inset-top, 0px))` pushes content below
+  the notch, and since the row is auto-sized, it fits within the viewport
+
+### Files changed
+
+- `ui/index.html` — viewport meta: added `viewport-fit=cover`
+- `ui/src/styles/layout.mobile.css` — grid rows: `auto minmax(0,1fr)` instead of
+  `calc(52px + inset) minmax(0,1fr)`; topbar padding uses `env(safe-area-inset-top, 0px)`
+
+## 2026-04-18 — Dynamic Island fix (attempt 3)
+
+- **Mobile shell**: switched from `height: 100dvh` to `position: fixed; inset: 0` on ≤768px
+  to lock the UI exactly to the visible viewport, bypassing the iOS Safari 100dvh rounding
+  bug that caused the shell to be slightly taller than the screen when `viewport-fit=cover`
+  is active.
+- **Desktop shell**: added `height: -webkit-fill-available` fallback after `100vh` / `100dvh`
+  for better cross-browser support.
+- **`html, body`**: set `height: 100%; margin: 0; padding: 0; overflow: hidden` to prevent
+  any body-level overflow.
+- **Mobile shell**: added `overscroll-behavior: none` to prevent iOS rubber-band scrolling.
+- All previous fixes retained: `viewport-fit=cover`, auto grid rows, `padding-top:
+max(10px, env(safe-area-inset-top))` on `.topbar`.

@@ -2,6 +2,13 @@
    Shell Layout
    =========================================== */
 
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 .shell {
   --shell-pad: 16px;
   --shell-gap: 16px;
@@ -11,6 +18,7 @@
   --shell-focus-duration: 200ms;
   --shell-focus-ease: var(--ease-out);
   height: 100vh;
+  height: -webkit-fill-available;
   display: grid;
   grid-template-columns: var(--shell-nav-width) minmax(0, 1fr);
   grid-template-rows: var(--shell-topbar-height) 1fr;
@@ -26,18 +34,22 @@
 @supports (height: 100dvh) {
   .shell {
     height: 100dvh;
+    height: -webkit-fill-available;
   }
 }
 
 .shell--chat {
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   height: 100vh;
+  height: -webkit-fill-available;
   overflow: hidden;
 }
 
 @supports (height: 100dvh) {
   .shell--chat {
     height: 100dvh;
+    height: -webkit-fill-available;
   }
 }
 

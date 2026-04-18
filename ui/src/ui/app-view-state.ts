@@ -55,6 +55,7 @@ export type AppViewState = {
   onboarding: boolean;
   basePath: string;
   connected: boolean;
+  connecting: boolean;
   theme: ThemeName;
   themeMode: ThemeMode;
   themeResolved: ResolvedTheme;
