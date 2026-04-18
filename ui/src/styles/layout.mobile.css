@@ -221,6 +221,15 @@
   }
 }
 
+/* iOS Safari landscape→portrait text zoom fix.
+   Safari auto-inflates text on orientation change; this prevents the
+   persistent enlargement until page refresh.
+   See: https://bugs.webkit.org/show_bug.cgi?id=170975 */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /* Mobile-specific styles */
 @media (max-width: 768px) {
   .shell,
