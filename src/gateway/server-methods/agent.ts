@@ -12,6 +12,7 @@ import {
 } from "../../auto-reply/reply/startup-context.js";
 import { agentCommandFromIngress } from "../../commands/agent.js";
 import { loadConfig } from "../../config/config.js";
+import { resolveAgentModelPrimaryValue } from "../../config/model-input.js";
 import {
   mergeSessionEntry,
   resolveAgentIdFromSessionKey,
@@ -385,11 +386,19 @@ export const agentHandlers: GatewayRequestHandlers = {
       }
       const effectiveProvider = providerOverride || baseProvider;
       const effectiveModel = modelOverride || baseModel;
-      const supportsImages = await resolveGatewayModelSupportsImages({
+      let supportsImages = await resolveGatewayModelSupportsImages({
         loadGatewayModelCatalog: context.loadGatewayModelCatalog,
         provider: effectiveProvider,
         model: effectiveModel,
       });
+      // If the primary model doesn't support images but an imageModel is configured,
+      // allow attachments through — they'll be handled by the image tool / imageModel.
+      if (!supportsImages) {
+        const imageModelRef = resolveAgentModelPrimaryValue(cfg.agents?.defaults?.imageModel);
+        if (imageModelRef) {
+          supportsImages = true;
+        }
+      }
 
       try {
         const parsed = await parseMessageWithAttachments(message, normalizedAttachments, {
