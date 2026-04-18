@@ -1,0 +1,83 @@
+# Harley's Custom Build Pipeline 💥
+# Builds our patched OpenClaw fork and uploads the artifact.
+# Triggered on push to main (after merging our fix branches) or manually.
+# The built artifact can be downloaded and installed on the Asus.
+#
+# Workflow:
+#   1. Checkout our fork (with our patches)
+#   2. Install dependencies (pnpm)
+#   3. Build the full project (including Control UI with our mods)
+#   4. Pack into npm tarball
+#   5. Upload as GitHub Artifact (downloadable from Actions tab)
+
+name: Custom Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_profile:
+        description: 'Build profile (full or ciArtifacts)'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - ciArtifacts
+  push:
+    branches:
+      - custom-build
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - '.github/workflows/custom-build.yml'
+
+concurrency:
+  group: custom-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  NODE_VERSION: "24.x"
+  PNPM_VERSION: "10.32.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: node scripts/build-all.mjs ${{ github.event.inputs.build_profile || 'full' }}
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+
+      - name: Pack
+        run: npm pack
+        id: pack
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclaw-custom-build
+          path: openclaw-*.tgz
+          retention-days: 30
