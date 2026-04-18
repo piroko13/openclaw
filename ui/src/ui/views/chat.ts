@@ -1,5 +1,5 @@
 import { html, nothing, type TemplateResult } from "lit";
-import { ref } from "lit/directives/ref.js";
+import { ref, createRef } from "lit/directives/ref.js";
 import { repeat } from "lit/directives/repeat.js";
 import type { CompactionStatus, FallbackStatus } from "../app-tool-stream.ts";
 import {
@@ -1058,8 +1058,32 @@ export function renderChat(props: ChatProps) {
   };
   const isEmpty = chatItems.length === 0 && !props.loading;
 
+  const chatThreadRef = createRef<HTMLDivElement>();
+
+  // On iOS Safari, orientation changes reset scroll position.
+  // Use ResizeObserver on the chat-thread element to detect viewport
+  // dimension changes (which happen on orientation change) and scroll
+  // back to the bottom on mobile.
+  const handleChatThreadRef = (el?: Element) => {
+    if (!el) return;
+    const htmlEl = el as HTMLElement;
+    // Only activate on mobile (narrow viewport)
+    const isMobile = () => window.innerWidth <= 768;
+    const scrollToBottom = () => {
+      requestAnimationFrame(() => {
+        htmlEl.scrollTop = htmlEl.scrollHeight;
+      });
+    };
+    const observer = new ResizeObserver(() => {
+      if (isMobile()) scrollToBottom();
+    });
+    observer.observe(htmlEl);
+  };
+
   const thread = html`
     <div
+      ${ref(chatThreadRef)}
+      ${ref(handleChatThreadRef)}
       class="chat-thread"
       role="log"
       aria-live="polite"
