@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { resolveAgentModelPrimaryValue } from "../config/model-input.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { formatErrorMessage } from "../infra/errors.js";
 import type { PromptImageOrderEntry } from "../media/prompt-image-order.js";
@@ -427,11 +428,19 @@ export const handleNodeEvent = async (ctx: NodeEventContext, nodeId: string, evt
       if (normalizedAttachments.length > 0) {
         const sessionAgentId = resolveSessionAgentId({ sessionKey, config: cfg });
         const modelRef = resolveSessionModelRef(cfg, entry, sessionAgentId);
-        const supportsImages = await resolveGatewayModelSupportsImages({
+        let supportsImages = await resolveGatewayModelSupportsImages({
           loadGatewayModelCatalog: ctx.loadGatewayModelCatalog,
           provider: modelRef.provider,
           model: modelRef.model,
         });
+        // If the primary model doesn't support images but an imageModel is configured,
+        // allow attachments through — they'll be handled by the image tool / imageModel.
+        if (!supportsImages) {
+          const imageModelRef = resolveAgentModelPrimaryValue(cfg.agents?.defaults?.imageModel);
+          if (imageModelRef) {
+            supportsImages = true;
+          }
+        }
         try {
           const parsed = await parseMessageWithAttachments(message, normalizedAttachments, {
             maxBytes: 5_000_000,
