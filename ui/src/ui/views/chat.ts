@@ -6,6 +6,7 @@ import type { CompactionStatus, FallbackStatus } from "../app-tool-stream.ts";
 import {
   CHAT_ATTACHMENT_ACCEPT,
   isSupportedChatAttachmentMimeType,
+  inferMimeType,
 } from "../chat/attachment-support.ts";
 import { DeletedMessages } from "../chat/deleted-messages.ts";
 import { exportChatMarkdown } from "../chat/export.ts";
@@ -625,7 +626,7 @@ function handlePaste(e: ClipboardEvent, props: ChatProps) {
       const newAttachment: ChatAttachment = {
         id: generateAttachmentId(),
         dataUrl,
-        mimeType: file.type,
+        mimeType: inferMimeType(dataUrl, file.type),
       };
       const current = props.attachments ?? [];
       props.onAttachmentsChange?.([...current, newAttachment]);
@@ -652,7 +653,7 @@ function handleFileSelect(e: Event, props: ChatProps) {
       additions.push({
         id: generateAttachmentId(),
         dataUrl: reader.result as string,
-        mimeType: file.type,
+        mimeType: inferMimeType(reader.result as string, file.type),
       });
       pending--;
       if (pending === 0) {
@@ -683,7 +684,7 @@ function handleDrop(e: DragEvent, props: ChatProps) {
       additions.push({
         id: generateAttachmentId(),
         dataUrl: reader.result as string,
-        mimeType: file.type,
+        mimeType: inferMimeType(reader.result as string, file.type),
       });
       pending--;
       if (pending === 0) {
