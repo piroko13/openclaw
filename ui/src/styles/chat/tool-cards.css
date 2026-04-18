@@ -1,4 +1,13 @@
 /* Tool Card Styles */
+.tool-output-container,
+.tool-card-content {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+
 .chat-tool-card {
   border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
   border-radius: var(--radius-md);
@@ -15,6 +24,8 @@
   max-width: 100%;
   box-sizing: border-box;
   position: relative;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .chat-tool-card--expanded {
@@ -348,6 +359,8 @@
   max-width: 100%;
   box-sizing: border-box;
   overflow-wrap: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-tool-card__block-preview,
