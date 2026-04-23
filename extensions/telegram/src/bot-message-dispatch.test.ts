@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveChunkMode as resolveChunkModeRuntime } from "../../../src/auto-reply/chunk.js";
 import { resolveMarkdownTableMode as resolveMarkdownTableModeRuntime } from "../../../src/config/markdown-tables.js";
 import { resolveSessionStoreEntry as resolveSessionStoreEntryRuntime } from "../../../src/config/sessions/store.js";
+import type { OpenClawConfig } from "../../../src/config/types.openclaw.js";
 import { getAgentScopedMediaLocalRoots as getAgentScopedMediaLocalRootsRuntime } from "../../../src/media/local-roots.js";
 import { resolveAutoTopicLabelConfig as resolveAutoTopicLabelConfigRuntime } from "./auto-topic-label.js";
 import type { TelegramBotDeps } from "./bot-deps.js";
@@ -295,6 +296,19 @@ describe("dispatchTelegramMessage draft streaming", () => {
         ...(base.route as object),
         ...(overrides?.route ? (overrides.route as object) : null),
       } as TelegramMessageContext["route"],
+    };
+  }
+
+  function createStatusReactionController() {
+    return {
+      setQueued: vi.fn(),
+      setThinking: vi.fn(async () => {}),
+      setTool: vi.fn(async () => {}),
+      setCompacting: vi.fn(async () => {}),
+      cancelPending: vi.fn(),
+      setError: vi.fn(async () => {}),
+      setDone: vi.fn(async () => {}),
+      restoreInitial: vi.fn(async () => {}),
     };
   }
 
@@ -2550,6 +2564,124 @@ describe("dispatchTelegramMessage draft streaming", () => {
     expect(draftStream.clear).toHaveBeenCalledTimes(1);
   });
 
+  it("rewrites a no-visible-response DM turn through silent-reply fallback", async () => {
+    const draftStream = createDraftStream(999);
+    createTelegramDraftStream.mockReturnValue(draftStream);
+    dispatchReplyWithBufferedBlockDispatcher.mockResolvedValue({
+      queuedFinal: false,
+    });
+    deliverReplies.mockResolvedValueOnce({ delivered: true });
+
+    await dispatchWithContext({
+      context: createContext({
+        ctxPayload: {
+          SessionKey: "agent:main:telegram:direct:123",
+        } as unknown as TelegramMessageContext["ctxPayload"],
+      }),
+      cfg: {
+        agents: {
+          defaults: {
+            silentReply: {
+              direct: "disallow",
+              group: "allow",
+              internal: "allow",
+            },
+            silentReplyRewrite: {
+              direct: true,
+            },
+          },
+        },
+      } as unknown as OpenClawConfig,
+    });
+
+    expect(deliverReplies).toHaveBeenCalledTimes(1);
+    const deliveredReplies = deliverReplies.mock.calls[0]?.[0]?.replies;
+    expect(Array.isArray(deliveredReplies)).toBe(true);
+    expect(deliveredReplies?.[0]?.text).toEqual(expect.any(String));
+    expect(deliveredReplies?.[0]?.text?.trim()).not.toBe("NO_REPLY");
+  });
+
+  it("does not add silent-reply fallback after visible block delivery", async () => {
+    const draftStream = createDraftStream(999);
+    createTelegramDraftStream.mockReturnValue(draftStream);
+    dispatchReplyWithBufferedBlockDispatcher.mockImplementation(async ({ dispatcherOptions }) => {
+      await dispatcherOptions.deliver({ text: "visible block" }, { kind: "block" });
+      return { queuedFinal: false };
+    });
+    deliverReplies.mockResolvedValue({ delivered: true });
+
+    await dispatchWithContext({
+      context: createContext({
+        ctxPayload: {
+          SessionKey: "agent:main:telegram:direct:123",
+        } as unknown as TelegramMessageContext["ctxPayload"],
+      }),
+      cfg: {
+        agents: {
+          defaults: {
+            silentReply: {
+              direct: "disallow",
+              group: "allow",
+              internal: "allow",
+            },
+            silentReplyRewrite: {
+              direct: true,
+            },
+          },
+        },
+      } as unknown as OpenClawConfig,
+    });
+
+    expect(deliverReplies).toHaveBeenCalledTimes(1);
+    expect(deliverReplies).toHaveBeenCalledWith(
+      expect.objectContaining({
+        replies: [expect.objectContaining({ text: "visible block" })],
+      }),
+    );
+  });
+
+  it("keeps no-visible-response group turns silent when policy allows silence", async () => {
+    const draftStream = createDraftStream(999);
+    createTelegramDraftStream.mockReturnValue(draftStream);
+    dispatchReplyWithBufferedBlockDispatcher.mockResolvedValue({
+      queuedFinal: false,
+    });
+
+    await dispatchWithContext({
+      context: createContext({
+        isGroup: true,
+        primaryCtx: {
+          message: { chat: { id: 123, type: "supergroup" } },
+        } as TelegramMessageContext["primaryCtx"],
+        msg: {
+          chat: { id: 123, type: "supergroup" },
+          message_id: 456,
+          message_thread_id: 777,
+        } as TelegramMessageContext["msg"],
+        threadSpec: { id: 777, scope: "forum" },
+        ctxPayload: {
+          SessionKey: "agent:main:telegram:group:123",
+        } as unknown as TelegramMessageContext["ctxPayload"],
+      }),
+      cfg: {
+        agents: {
+          defaults: {
+            silentReply: {
+              direct: "disallow",
+              group: "allow",
+              internal: "allow",
+            },
+            silentReplyRewrite: {
+              direct: true,
+            },
+          },
+        },
+      } as unknown as OpenClawConfig,
+    });
+
+    expect(deliverReplies).not.toHaveBeenCalled();
+  });
+
   it("sends fallback and clears preview when deliver throws (dispatcher swallows error)", async () => {
     const draftStream = createDraftStream();
     createTelegramDraftStream.mockReturnValue(draftStream);
@@ -2780,6 +2912,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
           Body: "abort",
           RawBody: "abort",
           CommandBody: "abort",
+          CommandAuthorized: true,
         } as never,
       }),
     });
@@ -2863,6 +2996,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
           Body: "abort",
           RawBody: "abort",
           CommandBody: "abort",
+          CommandAuthorized: true,
         } as never,
       }),
     });
@@ -2933,6 +3067,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
           Body: "abort",
           RawBody: "abort",
           CommandBody: "abort",
+          CommandAuthorized: true,
         } as never,
       }),
     });
@@ -3038,6 +3173,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
           Body: "abort",
           RawBody: "abort",
           CommandBody: "abort",
+          CommandAuthorized: true,
         } as never,
       }),
     });
@@ -3071,15 +3207,8 @@ describe("dispatchTelegramMessage draft streaming", () => {
       resolvePreviewVisible = resolve;
     });
 
-    const statusReactionController = {
-      setQueued: vi.fn(),
-      setThinking: vi.fn(async () => {}),
-      setTool: vi.fn(async () => {}),
-      setCompacting: vi.fn(async () => {}),
-      cancelPending: vi.fn(),
-      setError: vi.fn(async () => {}),
-      setDone: vi.fn(async () => {}),
-    };
+    const reactionApi = vi.fn(async () => true);
+    const statusReactionController = createStatusReactionController();
     const firstAnswerDraft = createTestDraftStream({
       messageId: 1001,
       onUpdate: (text) => {
@@ -3112,6 +3241,8 @@ describe("dispatchTelegramMessage draft streaming", () => {
 
     const firstPromise = dispatchWithContext({
       context: createContext({
+        reactionApi: reactionApi as never,
+        removeAckAfterReply: true,
         statusReactionController: statusReactionController as never,
         ctxPayload: {
           SessionKey: "s1",
@@ -3119,6 +3250,15 @@ describe("dispatchTelegramMessage draft streaming", () => {
           RawBody: "earlier request",
         } as never,
       }),
+      cfg: {
+        messages: {
+          statusReactions: {
+            timing: {
+              doneHoldMs: 250,
+            },
+          },
+        },
+      },
     });
 
     await previewVisible;
@@ -3130,6 +3270,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
           Body: "abort",
           RawBody: "abort",
           CommandBody: "abort",
+          CommandAuthorized: true,
         } as never,
       }),
     });
@@ -3142,11 +3283,23 @@ describe("dispatchTelegramMessage draft streaming", () => {
       );
     });
 
-    releaseFirstFinal();
-    await Promise.all([firstPromise, abortPromise]);
+    vi.useFakeTimers();
+    try {
+      releaseFirstFinal();
+      await Promise.all([firstPromise, abortPromise]);
 
-    expect(statusReactionController.setDone).toHaveBeenCalledTimes(1);
-    expect(statusReactionController.setError).not.toHaveBeenCalled();
+      expect(statusReactionController.setDone).toHaveBeenCalledTimes(1);
+      expect(statusReactionController.setError).not.toHaveBeenCalled();
+      expect(reactionApi).not.toHaveBeenCalledWith(123, 456, []);
+
+      await vi.advanceTimersByTimeAsync(249);
+      expect(reactionApi).not.toHaveBeenCalledWith(123, 456, []);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(reactionApi).toHaveBeenCalledWith(123, 456, []);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps an existing preview when abort arrives during queued draft-lane cleanup", async () => {
@@ -3219,6 +3372,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
           Body: "abort",
           RawBody: "abort",
           CommandBody: "abort",
+          CommandAuthorized: true,
         } as never,
       }),
       bot,
@@ -3299,6 +3453,7 @@ describe("dispatchTelegramMessage draft streaming", () => {
           Body: "abort",
           RawBody: "abort",
           CommandBody: "abort",
+          CommandAuthorized: true,
         } as never,
       }),
     });
@@ -3437,6 +3592,257 @@ describe("dispatchTelegramMessage draft streaming", () => {
     expect(statusReactionController.cancelPending.mock.invocationCallOrder[0]).toBeLessThan(
       statusReactionController.setThinking.mock.invocationCallOrder[1],
     );
+  });
+
+  it("does not supersede the same session for unauthorized abort-looking commands", async () => {
+    let releaseFirstFinal!: () => void;
+    const firstFinalGate = new Promise<void>((resolve) => {
+      releaseFirstFinal = resolve;
+    });
+    let resolvePreviewVisible!: () => void;
+    const previewVisible = new Promise<void>((resolve) => {
+      resolvePreviewVisible = resolve;
+    });
+
+    const firstAnswerDraft = createTestDraftStream({
+      messageId: 1001,
+      onUpdate: (text) => {
+        if (text === "Old reply partial") {
+          resolvePreviewVisible();
+        }
+      },
+    });
+    const firstReasoningDraft = createDraftStream();
+    const unauthorizedAnswerDraft = createDraftStream();
+    const unauthorizedReasoningDraft = createDraftStream();
+    createTelegramDraftStream
+      .mockImplementationOnce(() => firstAnswerDraft)
+      .mockImplementationOnce(() => firstReasoningDraft)
+      .mockImplementationOnce(() => unauthorizedAnswerDraft)
+      .mockImplementationOnce(() => unauthorizedReasoningDraft);
+    dispatchReplyWithBufferedBlockDispatcher
+      .mockImplementationOnce(async ({ dispatcherOptions, replyOptions }) => {
+        await replyOptions?.onPartialReply?.({ text: "Old reply partial" });
+        await firstFinalGate;
+        await dispatcherOptions.deliver({ text: "Old reply final" }, { kind: "final" });
+        return { queuedFinal: true };
+      })
+      .mockImplementationOnce(async ({ dispatcherOptions }) => {
+        await dispatcherOptions.deliver({ text: "Unauthorized stop" }, { kind: "final" });
+        return { queuedFinal: true };
+      });
+    deliverReplies.mockResolvedValue({ delivered: true });
+    editMessageTelegram.mockResolvedValue({ ok: true, chatId: "123", messageId: "1001" });
+
+    const firstPromise = dispatchWithContext({
+      context: createContext({
+        ctxPayload: {
+          SessionKey: "s1",
+          Body: "earlier request",
+          RawBody: "earlier request",
+        } as never,
+      }),
+    });
+
+    await previewVisible;
+
+    const unauthorizedPromise = dispatchWithContext({
+      context: createContext({
+        ctxPayload: {
+          SessionKey: "s1",
+          Body: "/stop",
+          RawBody: "/stop",
+          CommandBody: "/stop",
+          CommandAuthorized: false,
+        } as never,
+      }),
+    });
+
+    await vi.waitFor(() => {
+      expect(deliverReplies).toHaveBeenCalledWith(
+        expect.objectContaining({
+          replies: [{ text: "Unauthorized stop" }],
+        }),
+      );
+    });
+
+    releaseFirstFinal();
+    await Promise.all([firstPromise, unauthorizedPromise]);
+
+    expect(editMessageTelegram).toHaveBeenCalledWith(
+      123,
+      1001,
+      "Old reply final",
+      expect.any(Object),
+    );
+  });
+
+  it("uses configured doneHoldMs when clearing Telegram status reactions after reply", async () => {
+    vi.useFakeTimers();
+    const reactionApi = vi.fn(async () => true);
+    const statusReactionController = createStatusReactionController();
+    dispatchReplyWithBufferedBlockDispatcher.mockResolvedValue({ queuedFinal: true });
+    deliverReplies.mockResolvedValue({ delivered: true });
+
+    try {
+      await dispatchWithContext({
+        context: createContext({
+          reactionApi: reactionApi as never,
+          removeAckAfterReply: true,
+          statusReactionController: statusReactionController as never,
+        }),
+        cfg: {
+          messages: {
+            statusReactions: {
+              timing: {
+                doneHoldMs: 250,
+              },
+            },
+          },
+        },
+        streamMode: "off",
+      });
+
+      expect(statusReactionController.setDone).toHaveBeenCalledTimes(1);
+      expect(statusReactionController.restoreInitial).not.toHaveBeenCalled();
+      expect(reactionApi).not.toHaveBeenCalledWith(123, 456, []);
+
+      await vi.advanceTimersByTimeAsync(249);
+      expect(reactionApi).not.toHaveBeenCalledWith(123, 456, []);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(reactionApi).toHaveBeenCalledWith(123, 456, []);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restores the initial Telegram status reaction after reply when removeAckAfterReply is disabled", async () => {
+    const reactionApi = vi.fn(async () => true);
+    const statusReactionController = createStatusReactionController();
+    dispatchReplyWithBufferedBlockDispatcher.mockResolvedValue({ queuedFinal: true });
+    deliverReplies.mockResolvedValue({ delivered: true });
+
+    await dispatchWithContext({
+      context: createContext({
+        reactionApi: reactionApi as never,
+        removeAckAfterReply: false,
+        statusReactionController: statusReactionController as never,
+      }),
+      streamMode: "off",
+    });
+
+    await vi.waitFor(() => {
+      expect(statusReactionController.setDone).toHaveBeenCalledTimes(1);
+      expect(statusReactionController.restoreInitial).toHaveBeenCalledTimes(1);
+    });
+    expect(statusReactionController.setError).not.toHaveBeenCalled();
+    expect(reactionApi).not.toHaveBeenCalledWith(123, 456, []);
+  });
+
+  it("uses configured errorHoldMs to clear Telegram status reactions after an error fallback", async () => {
+    vi.useFakeTimers();
+    const reactionApi = vi.fn(async () => true);
+    const statusReactionController = createStatusReactionController();
+    dispatchReplyWithBufferedBlockDispatcher.mockRejectedValue(new Error("dispatcher exploded"));
+    deliverReplies.mockResolvedValue({ delivered: true });
+
+    try {
+      await dispatchWithContext({
+        context: createContext({
+          reactionApi: reactionApi as never,
+          removeAckAfterReply: true,
+          statusReactionController: statusReactionController as never,
+        }),
+        cfg: {
+          messages: {
+            statusReactions: {
+              timing: {
+                errorHoldMs: 320,
+              },
+            },
+          },
+        },
+        streamMode: "off",
+      });
+
+      expect(statusReactionController.setError).toHaveBeenCalledTimes(1);
+      expect(statusReactionController.setDone).not.toHaveBeenCalled();
+      expect(statusReactionController.restoreInitial).not.toHaveBeenCalled();
+      expect(reactionApi).not.toHaveBeenCalledWith(123, 456, []);
+
+      await vi.advanceTimersByTimeAsync(319);
+      expect(reactionApi).not.toHaveBeenCalledWith(123, 456, []);
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(reactionApi).toHaveBeenCalledWith(123, 456, []);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restores the initial Telegram status reaction after an error when no final reply is sent", async () => {
+    vi.useFakeTimers();
+    const reactionApi = vi.fn(async () => true);
+    const statusReactionController = createStatusReactionController();
+    dispatchReplyWithBufferedBlockDispatcher.mockRejectedValue(new Error("dispatcher exploded"));
+    deliverReplies.mockResolvedValue({ delivered: false });
+
+    try {
+      await dispatchWithContext({
+        context: createContext({
+          reactionApi: reactionApi as never,
+          removeAckAfterReply: true,
+          statusReactionController: statusReactionController as never,
+        }),
+        cfg: {
+          messages: {
+            statusReactions: {
+              timing: {
+                errorHoldMs: 320,
+              },
+            },
+          },
+        },
+        streamMode: "off",
+      });
+
+      expect(statusReactionController.setError).toHaveBeenCalledTimes(1);
+      expect(statusReactionController.restoreInitial).not.toHaveBeenCalled();
+      expect(reactionApi).not.toHaveBeenCalledWith(123, 456, []);
+
+      await vi.advanceTimersByTimeAsync(319);
+      expect(statusReactionController.restoreInitial).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(1);
+      expect(statusReactionController.restoreInitial).toHaveBeenCalledTimes(1);
+      expect(reactionApi).not.toHaveBeenCalledWith(123, 456, []);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("restores the initial Telegram status reaction after an error fallback when removeAckAfterReply is disabled", async () => {
+    const reactionApi = vi.fn(async () => true);
+    const statusReactionController = createStatusReactionController();
+    dispatchReplyWithBufferedBlockDispatcher.mockRejectedValue(new Error("dispatcher exploded"));
+    deliverReplies.mockResolvedValue({ delivered: true });
+
+    await dispatchWithContext({
+      context: createContext({
+        reactionApi: reactionApi as never,
+        removeAckAfterReply: false,
+        statusReactionController: statusReactionController as never,
+      }),
+      streamMode: "off",
+    });
+
+    await vi.waitFor(() => {
+      expect(statusReactionController.setError).toHaveBeenCalledTimes(1);
+      expect(statusReactionController.restoreInitial).toHaveBeenCalledTimes(1);
+    });
+    expect(statusReactionController.setDone).not.toHaveBeenCalled();
+    expect(reactionApi).not.toHaveBeenCalledWith(123, 456, []);
   });
 
   it("uses resolved DM config for auto-topic-label overrides", async () => {
