@@ -11,6 +11,7 @@ import type { ReplyPayload } from "../../auto-reply/reply-payload.js";
 import { createReplyDispatcher } from "../../auto-reply/reply/reply-dispatcher.js";
 import type { MsgContext } from "../../auto-reply/templating.js";
 import { extractCanvasFromText } from "../../chat/canvas-render.js";
+import { resolveAgentModelPrimaryValue } from "../../config/model-input.js";
 import { resolveSessionFilePath } from "../../config/sessions.js";
 import { jsonUtf8Bytes } from "../../infra/json-utf8-bytes.js";
 import { getAgentScopedMediaLocalRoots } from "../../media/local-roots.js";
@@ -1912,11 +1913,19 @@ export const chatHandlers: GatewayRequestHandlers = {
     }
     if (normalizedAttachments.length > 0) {
       const modelRef = resolveSessionModelRef(cfg, entry, agentId);
-      const supportsImages = await resolveGatewayModelSupportsImages({
+      let supportsImages = await resolveGatewayModelSupportsImages({
         loadGatewayModelCatalog: context.loadGatewayModelCatalog,
         provider: modelRef.provider,
         model: modelRef.model,
       });
+      // If the primary model doesn't support images but an imageModel is configured,
+      // allow attachments through — they'll be handled by the image tool / imageModel.
+      if (!supportsImages) {
+        const imageModelRef = resolveAgentModelPrimaryValue(cfg.agents?.defaults?.imageModel);
+        if (imageModelRef) {
+          supportsImages = true;
+        }
+      }
       try {
         const parsed = await parseMessageWithAttachments(inboundMessage, normalizedAttachments, {
           maxBytes: 5_000_000,

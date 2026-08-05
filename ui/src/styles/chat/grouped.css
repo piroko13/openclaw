@@ -196,8 +196,17 @@ img.chat-avatar {
   word-wrap: break-word;
 }
 
-.chat-bubble.has-copy {
-  padding-right: 70px;
+/* Reserve space for action buttons (copy + expand) so they don't overlap text.
+   On desktop the buttons appear on hover only; on touch devices they are always visible.
+   Two buttons need ~90px; one button needs ~50px. */
+.chat-bubble.has-actions {
+  padding-right: 90px;
+}
+
+/* When only one action button is present (copy-only, no expand),
+   the narrower padding is sufficient. Applied via JS if needed. */
+.chat-bubble.has-actions--single {
+  padding-right: 50px;
 }
 
 .chat-bubble-actions {
@@ -220,6 +229,15 @@ img.chat-avatar {
   .chat-bubble-actions {
     opacity: 1;
     pointer-events: auto;
+  }
+
+  /* On touch devices, give even more room so buttons never clip text */
+  .chat-bubble.has-actions {
+    padding-right: 96px;
+  }
+
+  .chat-bubble.has-actions--single {
+    padding-right: 54px;
   }
 }
 
